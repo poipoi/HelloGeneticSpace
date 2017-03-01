@@ -8,15 +8,29 @@ class CodeGenerator:
 	def generate(cls, paramList):
 		code = []
 		code.append('var i = 0;')
+		code.append(cls.generateCodeList(paramList))
+		code.append('function* CodePicker(codeList) { for (var code of codeList) { var i = 0; while (i < code.span) { yield code.param; i++; } } }')
+		code.append('var picker = CodePicker(codeList)')
 		code.append('return function GoToMoon(state) {')
 		code.append('var rocket = state.rocket')
 		code.append('var moon = state.planetStates[1]')
 		code.append(cls.generateLogCode())
-		code.append('var controls = new Controls({ thrust: 1, rcs: { pitch: 0.01, yaw: 0.01 }});')
+		code.append('var controls = new Controls(picker.next().value);')
 		code.append('i++;')
 		code.append('return controls;')
 		return code
 
+	@classmethod
+	def generateCodeList(cls, paramList):
+		str = 'var codeList = ['
+		for param in paramList:
+			print(param)
+			print(param['span'])
+			str += '{{ span: {0}, param: {{ thrust: {1}, rcs: {{ pitch: {2}, yaw: {3}, roll: {4} }} }} }},'.\
+				format(param['span'], param['thrust'], param['pitch'], param['yaw'], param['roll'])
+		str += '];'
+		return str
+		
 	@classmethod
 	def generateLogCode(cls):
 		str = ''
@@ -110,11 +124,14 @@ if __name__ == '__main__':
 	controller = HelloSpaceController()
 	controller.connect()
 
-	code = []
+	code = [
+		{ 'span': 100, 'thrust': 1.0, 'pitch': 0.0, 'yaw': 0.0, 'roll': 0.0 },
+		{ 'span': 100, 'thrust': 0.0, 'pitch': 0.0, 'yaw': 0.0, 'roll': 0.0 },
+	]
 	controller.setCode(code)
 
 	controller.launch()
-	time.sleep(5)
+	time.sleep(10)
 
 	controller.reset()
 	time.sleep(1)
