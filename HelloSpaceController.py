@@ -1,7 +1,9 @@
 from selenium import webdriver
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 import time
+import threading
 
 class CodeGenerator:
 	@classmethod
@@ -37,7 +39,7 @@ return function GoToMoon(state) {{
 	def generateLogCode(cls):
 		codestr = \
 '''
-console.log(
+console.log([
 	"state",
 	i, 
 	rocket.mass,
@@ -50,10 +52,10 @@ console.log(
 	moon.mass, 
 	moon.radius, 
 	moon.position.x, moon.position.y, moon.position.z, 
-	moon.rotation.x, moon.rotation.y, moon.rotation.z, 
+	moon.rotation.x, moon.rotation.y, moon.rotation.z, moon.rotation.w,
 	moon.velocity.x, moon.velocity.y, moon.velocity.z, 
 	moon.angularVelocity.x, moon.angularVelocity.y, moon.angularVelocity.z
-);
+].join(','));
 '''
 		return codestr.replace('\n', '').replace('\t', '')
 
@@ -98,7 +100,10 @@ class EditorController:
 
 class HelloSpaceController:
 	def connect(self):
-		self.driver = webdriver.Chrome()
+		d = DesiredCapabilities.CHROME
+		d['loggingPrefs'] = { 'browser' : 'ALL' }
+		
+		self.driver = webdriver.Chrome(desired_capabilities = d)
 		self.driver.get("http://hellospace.reaktor.com")
 
 		time.sleep(10)	# TBD: ちゃんとした読み込み終了までのwaitに変える
@@ -108,6 +113,40 @@ class HelloSpaceController:
 
 	def close(self):
 		self.driver.close()
+
+	def getLog(self):
+		rawlog = self.driver.get_log('browser')
+		if len(rawlog) == 0:
+			return None
+
+		log = rawlog[-1]['message']
+		loglist = log[log.find('"') + 1 : log.rfind('"')].split(',')
+		if loglist[0] != 'state':
+			return None
+
+		return {
+			'frame': int(loglist[1]),
+			'rocket': {
+				'mass': float(loglist[2]),
+				'position': list(map(float, loglist[3:6])),
+				'rotation': list(map(float, loglist[6:10])),
+				'velocity': list(map(float, loglist[10:13])),
+				'angularVelocity': list(map(float, loglist[13:16])),
+				'exploded': bool(loglist[16]),
+				'fuel': {
+					'mass': float(loglist[17]),
+					'volume': float(loglist[18]),
+				},
+			},
+			'planetState': {
+				'mass': float(loglist[19]),
+				'radius': float(loglist[20]),
+				'position': list(map(float, loglist[21:24])),
+				'rotation': list(map(float, loglist[24:28])),
+				'velocity': list(map(float, loglist[28:31])),
+				'anglarVelocity': list(map(float, loglist[31:34])),
+			},
+		}
 
 	def setCode(self, code):
 		genCode = CodeGenerator.generate(code)
@@ -136,9 +175,17 @@ if __name__ == '__main__':
 	controller.setCode(code)
 
 	controller.launch()
+
+	while True:
+		log = controller.getLog()
+		if log != None:
+			print(log)
+
+'''
 	time.sleep(10)
 
 	controller.reset()
 	time.sleep(1)
 
 	controller.close()
+'''
