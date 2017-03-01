@@ -6,26 +6,28 @@ import time
 class CodeGenerator:
 	@classmethod
 	def generate(cls, paramList):
-		code = []
-		code.append('var i = 0;')
-		code.append(cls.generateCodeList(paramList))
-		code.append('function* CodePicker(codeList) { for (var code of codeList) { var i = 0; while (i < code.span) { yield code.param; i++; } } }')
-		code.append('var picker = CodePicker(codeList)')
-		code.append('return function GoToMoon(state) {')
-		code.append('var rocket = state.rocket')
-		code.append('var moon = state.planetStates[1]')
-		code.append(cls.generateLogCode())
-		code.append('var controls = new Controls(picker.next().value);')
-		code.append('i++;')
-		code.append('return controls;')
-		return code
+		codestr = \
+'''
+var i = 0;
+{0}
+
+function* CodePicker(codeList) {{ for (var code of codeList) {{ var i = 0; while (i < code.span) {{ yield code.param; i++; }} }} }}
+var picker = CodePicker(codeList);
+
+return function GoToMoon(state) {{
+	var rocket = state.rocket;
+	var moon = state.planetStates[1];
+{1}
+	var controls = new Controls(picker.next().value);
+	i++;
+	return controls;
+'''.format(cls.generateCodeList(paramList), cls.generateLogCode())
+		return map(str.strip, codestr.splitlines())
 
 	@classmethod
 	def generateCodeList(cls, paramList):
 		str = 'var codeList = ['
 		for param in paramList:
-			print(param)
-			print(param['span'])
 			str += '{{ span: {0}, param: {{ thrust: {1}, rcs: {{ pitch: {2}, yaw: {3}, roll: {4} }} }} }},'.\
 				format(param['span'], param['thrust'], param['pitch'], param['yaw'], param['roll'])
 		str += '];'
@@ -33,24 +35,27 @@ class CodeGenerator:
 		
 	@classmethod
 	def generateLogCode(cls):
-		str = ''
-		str += 'console.log("state", '
-		str += 'i, '
-		str += 'rocket.mass, '
-		str += 'rocket.position.x, rocket.position.y, rocket.position.z, '
-		str += 'rocket.rotation.x, rocket.rotation.y, rocket.rotation.z, rocket.rotation.w, '
-		str += 'rocket.velocity.x, rocket.velocity.y, rocket.velocity.z, '
-		str += 'rocket.angularVelocity.x, rocket.angularVelocity.y, rocket.angularVelocity.z, '
-		str += 'rocket.exploded, '
-		str += 'rocket.fuel.mass, rocket.fuel.volume, '
-		str += 'moon.mass, '
-		str += 'moon.radius, '
-		str += 'moon.position.x, moon.position.y, moon.position.z, '
-		str += 'moon.rotation.x, moon.rotation.y, moon.rotation.z, '
-		str += 'moon.velocity.x, moon.velocity.y, moon.velocity.z, '
-		str += 'moon.angularVelocity.x, moon.angularVelocity.y, moon.angularVelocity.z'
-		str += ');'
-		return str
+		codestr = \
+'''
+console.log(
+	"state",
+	i, 
+	rocket.mass,
+	rocket.position.x, rocket.position.y, rocket.position.z, 
+	rocket.rotation.x, rocket.rotation.y, rocket.rotation.z, rocket.rotation.w, 
+	rocket.velocity.x, rocket.velocity.y, rocket.velocity.z, 
+	rocket.angularVelocity.x, rocket.angularVelocity.y, rocket.angularVelocity.z, 
+	rocket.exploded, 
+	rocket.fuel.mass, rocket.fuel.volume, 
+	moon.mass, 
+	moon.radius, 
+	moon.position.x, moon.position.y, moon.position.z, 
+	moon.rotation.x, moon.rotation.y, moon.rotation.z, 
+	moon.velocity.x, moon.velocity.y, moon.velocity.z, 
+	moon.angularVelocity.x, moon.angularVelocity.y, moon.angularVelocity.z
+);
+'''
+		return codestr.replace('\n', '').replace('\t', '')
 
 class UIController:
 	def __init__(self, driver):
