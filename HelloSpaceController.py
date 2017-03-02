@@ -3,7 +3,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 import time
-import threading
+from ThreadManager import *
 
 class CodeGenerator:
 	@classmethod
@@ -99,20 +99,24 @@ class EditorController:
 
 
 class HelloSpaceController:
+	def __init__(self):
+		self.param = None
+
 	def connect(self):
-		d = DesiredCapabilities.CHROME
-		d['loggingPrefs'] = { 'browser' : 'ALL' }
-		
-		self.driver = webdriver.Chrome(desired_capabilities = d)
-		self.driver.get("http://hellospace.reaktor.com")
-
-		time.sleep(10)	# TBD: ちゃんとした読み込み終了までのwaitに変える
-
-		self.editor = EditorController(self.driver)
-		self.ui = UIController(self.driver)
+		self.isReady = False
+		self.q = Queue()
+		self.thread = Thread(self.__run, self.q).start()
+		self.q.put('connect')
+		while not self.isReady:
+			pass
+		self.ticker = Ticker(0.01, self.q, 'tick').start()
 
 	def close(self):
-		self.driver.close()
+		self.ticker.stop()
+		self.q.put('close')
+		while self.isReady:
+			pass
+		self.thread.stop()
 
 	def getLog(self):
 		rawlog = self.driver.get_log('browser')
@@ -149,6 +153,15 @@ class HelloSpaceController:
 		}
 
 	def setCode(self, code):
+		self.q.put(['set_code', code])
+
+	def reset(self):
+		self.q.put('reset')
+
+	def launch(self):
+		self.q.put('launch')
+
+	def __setCode(self, code):
 		genCode = CodeGenerator.generate(code)
 	
 		self.editor.activate()
@@ -156,12 +169,44 @@ class HelloSpaceController:
 		for str in genCode:
 			self.editor.typeLine(str)
 
-	def reset(self):
+	def __reset(self):
 		self.ui.reset()
 
-	def launch(self):
+	def __launch(self):
 		self.ui.launch()
 
+	def __connect(self):
+		d = DesiredCapabilities.CHROME
+		d['loggingPrefs'] = { 'browser' : 'ALL' }
+		self.driver = webdriver.Chrome(desired_capabilities = d)
+		self.driver.get("http://hellospace.reaktor.com")
+
+		time.sleep(10)	# TBD: ちゃんとした読み込み終了までのwaitに変える
+
+		self.editor = EditorController(self.driver)
+		self.ui = UIController(self.driver)
+
+		self.isReady = True
+
+	def __close(self):
+		self.driver.close()
+		self.isReady = False
+	
+	def __run(self, arg):
+		if arg == 'connect':
+			self.__connect()
+		elif arg == 'close':
+			self.__close()
+		elif arg == 'tick':
+			param = self.getLog()
+			if param != None:
+				self.param = param
+		elif arg[0] == 'set_code':
+			self.__setCode(arg[1])
+		elif arg == 'reset':
+			self.__reset()
+		elif arg == 'launch':
+			self.__launch()
 
 
 if __name__ == '__main__':
@@ -176,16 +221,13 @@ if __name__ == '__main__':
 
 	controller.launch()
 
-	while True:
-		log = controller.getLog()
-		if log != None:
-			print(log)
-
-'''
-	time.sleep(10)
+	for i in range(5):
+		time.sleep(1)
+		print(controller.param)
 
 	controller.reset()
 	time.sleep(1)
 
 	controller.close()
-'''
+
+	print('Fin')
